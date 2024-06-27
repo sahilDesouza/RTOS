@@ -1,0 +1,1338 @@
+00000088 Starting Address
+Assembler used: EASy68K Editor/Assembler v5.16.01
+Created On: 19-01-2024 19:55:16
+
+00000000                             1  *-----------------------------------------------------------
+00000000                             2  * Title      : Realtime Operating System
+00000000                             3  * Written by : Sanjay, Sahil, Hamza
+00000000                             4  * Date       : Dec 22
+00000000                             5  * Description:  
+00000000                             6  *-----------------------------------------------------------
+00000000                             7                                          ;system call equates
+00000000                             8                                          
+00000000  =00000000                  9  sys     equ     0                       ; system call trap (trap 0)
+00000000  =00000001                 10  syscr   equ     1                       ; create new task
+00000000  =00000002                 11  sysdel  equ     2                       ; delete task
+00000000  =00000003                 12  syswtmx equ     3                       ; wait on mutex
+00000000  =00000004                 13  syssgmx equ     4                       ; signal mutex
+00000000  =00000005                 14  sysinmx equ     5                       ; initialise mutex 
+00000000  =00000006                 15  syswttm equ     6                       ; wait on timer
+00000000  =00000007                 16  syswtio equ     7                       ; wait on I/O interrupt
+00000000  =00000008                 17  sysmemalc equ   8                       ; allocate memory  
+00000000                            18  
+00000000  =00002000                 19  usrcode equ     $2000                   ;address of user task 0
+00000000  =00004000                 20  usrstk  equ     $4000                   ;address of user stack
+00000000  =00000008                 21  ntcblst equ     8                       ;number of records in tcb list
+00000000                            22  
+00000000                            23  tcb     org     0                       ;tcb record
+00000000                            24  tcbd0   ds.l    1                       ; D register save
+00000004                            25  tcbd1   ds.l    1
+00000008                            26  tcbd2   ds.l    1
+0000000C                            27  tcbd3   ds.l    1
+00000010                            28  tcbd4   ds.l    1
+00000014                            29  tcbd5   ds.l    1
+00000018                            30  tcbd6   ds.l    1
+0000001C                            31  tcbd7   ds.l    1
+00000020                            32  tcba0   ds.l    1                       ; A register save
+00000024                            33  tcba1   ds.l    1
+00000028                            34  tcba2   ds.l    1
+0000002C                            35  tcba3   ds.l    1
+00000030                            36  tcba4   ds.l    1
+00000034                            37  tcba5   ds.l    1
+00000038                            38  tcba6   ds.l    1
+0000003C                            39  tcba7   ds.l    1
+00000040                            40  tcbsr   ds.l    1                       ; SR (status reg) save
+00000044                            41  tcbpc   ds.l    1                       ; PC save          
+00000048                            42  tcbnext ds.l    1                       ; link to next record
+0000004C                            43  tcbused ds.l    1                       ; record in use flag
+00000050                            44  tcbwtim ds.l    1                       ; timer wait expiry time
+00000054  =00000054                 45  tcblen  equ     *                       ; length of tcb record, * returns the current location which happens to be the length of the tcb record
+00000054                            46  
+00000054                            47  ;******************************************************************************
+00000054                            48  rts                                     ;RUNTIME SYSTEM
+00000054                            49  ;******************************************************************************
+00000054                            50  
+00000054                            51  ;******************************************************************************
+00000054                            52                                          ;INTERRUPT VECTORS
+00000054                            53  ;******************************************************************************
+00000054                            54  
+00000000                            55          org     0
+00000000                            56          
+00000000= 00004000                  57          dc.l    usrstk                  ; initial SP
+00000004= 00000088                  58          dc.l    res                     ; reset
+00000008                            59          ds.b    $5C
+00000064= 00000154                  60          dc.l    fltint                  ; interrupt 1 (timer)
+00000068= 00000172                  61          dc.l    slioint                 ; interrupt 2 (I/O)
+0000006C                            62          ds.b    $18
+00000084= 000001BC                  63          dc.l    flsint                  ; trap 0 (system call)
+00000088                            64  ;*******************************************************************************        
+00000088                            65  res                                     ;RESET
+00000088                            66  ;*******************************************************************************
+00000088  23FC 00000606 000008A6    67      move.l  #tcblst,(rdytcb)
+00000092                            68  
+00000092  2079 000008A6             69      move.l  rdytcb,a0
+00000098  2179 000008A6 0048        70      move.l  rdytcb,tcbnext(a0)
+000000A0                            71      
+000000A0  2248                      72      move.l  a0,a1
+000000A2  7008                      73      move.l  #ntcblst,d0
+000000A4                            74      
+000000A4                            75  
+000000A4                            76  tcbinit
+000000A4                            77  
+000000A4  237C 00000000 0000        78      move.l  #$00,tcbd0(a1)                  move.l  #$00,tcbd1(a1)       
+000000AC  237C 00000000 0008        79      move.l  #$00,tcbd2(a1)
+000000B4  237C 00000000 000C        80      move.l  #$00,tcbd3(a1) 
+000000BC  237C 00000000 0010        81      move.l  #$00,tcbd4(a1)
+000000C4  237C 00000000 0014        82      move.l  #$00,tcbd5(a1)       
+000000CC  237C 00000000 0018        83      move.l  #$00,tcbd6(a1)
+000000D4  237C 00000000 001C        84      move.l  #$00,tcbd7(a1) 
+000000DC  237C 00000000 0020        85      move.l  #$00,tcba0(a1)
+000000E4  237C 00000000 0024        86      move.l  #$00,tcba1(a1)       
+000000EC  237C 00000000 0028        87      move.l  #$00,tcba2(a1)
+000000F4  237C 00000000 002C        88      move.l  #$00,tcba3(a1) 
+000000FC  237C 00000000 0030        89      move.l  #$00,tcba4(a1)
+00000104  237C 00000000 0034        90      move.l  #$00,tcba5(a1)       
+0000010C  237C 00000000 0038        91      move.l  #$00,tcba6(a1)
+00000114  237C 00000000 004C        92      move.l  #0,tcbused(a1)               
+0000011C  237C 00000000 0050        93      move.l  #0,tcbwtim(a1)               
+00000124  2349 0048                 94      move.l  a1,tcbnext(a1)
+00000128  2149 0048                 95      move.l  a1,tcbnext(a0)  
+0000012C  2049                      96      move.l  a1,a0           
+0000012E                            97      
+0000012E  D3FC 00000054             98      add.l   #tcblen,a1
+00000134  5380                      99      sub.l   #1,d0
+00000136  6600 FF6C                100      bne     tcbinit
+0000013A                           101  
+0000013A  2179 000008A6 0048       102      move.l  rdytcb,tcbnext(a0) 
+00000142                           103     
+00000142  217C 00000001 004C       104      move.l  #1,tcbused(a0)
+0000014A  2E7C 00004000            105      move.l  #usrstk,sp
+00000150  6000 1EAE                106      bra usrcode
+00000154                           107  
+00000154                           108  
+00000154                           109          
+00000154                           110  ;*******************************************************************************        
+00000154                           111  flih                                    ;FIRST-LEVEL INTERRUPT HANDLER
+00000154                           112  ;*******************************************************************************
+00000154                           113  
+00000154                           114  fltint                                  ;ENTRY FROM TIMER INTERRUPT  
+00000154  23C0 000008B6            115          move.l  d0,d0sav                ;save D0
+0000015A                           116          
+0000015A  7000                     117          move.l  #$0,d0                  ;set id = 0 as normal
+0000015C  23C0 000008C6            118          move.l  d0,id
+00000162  2039 000008B6            119          move.l  d0sav,d0                ;restore D0
+00000168                           120          
+00000168  52B9 000008CA            121          add.l  #$1,time                 ;update system time
+0000016E  6000 005A                122          bra     fl1  
+00000172                           123          
+00000172                           124          
+00000172                           125  
+00000172                           126  
+00000172                           127   
+00000172                           128  slioint
+00000172  23C0 000008BE            129          move.l  d0,d0sav2                ;save D0
+00000178  23C8 000008BA            130          move.l  a0,a0sav2                ;save A0
+0000017E                           131           
+0000017E                           132          
+0000017E  207C 00000606            133          move.l  #tcblst,a0
+00000184  7008                     134          move.l  #ntcblst,d0
+00000186                           135          
+00000186                           136          
+00000186                           137  ioreset
+00000186  23C0 000008C2            138          move.l  d0,sliointcounter
+0000018C                           139    
+0000018C  2028 0050                140          move.l  tcbwtim(a0),d0
+00000190  0480 FFFFFFFF            141          sub.l   #$FFFFFFFF,d0
+00000196  6600 0006                142          bne     skiptcb
+0000019A  2140 0050                143          move.l  d0,tcbwtim(a0)    
+0000019E                           144                      
+0000019E  D1FC 00000054            145  skiptcb  add.l   #tcblen,a0
+000001A4  2039 000008C2            146          move.l  sliointcounter,d0
+000001AA  5380                     147          sub.l   #1,d0
+000001AC  66D8                     148          bne     ioreset
+000001AE                           149      
+000001AE  2039 000008BE            150          move.l  d0sav2,d0                ;restore D0
+000001B4  2079 000008BA            151          move.l  a0sav2,a0                ;restore A0
+000001BA  4E73                     152          rte  
+000001BC                           153  
+000001BC                           154  flsint                                  ;ENTRY FROM TRAP (SOFTWARE INTERRUPT)
+000001BC  007C 0700                155          or      #%0000011100000000,sr   ;disable hardware interrupts
+000001C0  23C0 000008C6            156          move.l  d0,id                   ;store id
+000001C6  6000 0002                157          bra     fl1
+000001CA                           158         
+000001CA  23C8 000008B2            159  fl1     move.l  a0,a0sav                ;save working reg
+000001D0                           160          
+000001D0  2079 000008A6            161          move.l  rdytcb,a0               ;A0 ^ 1st ready tcb (ie running tcb)
+000001D6                           162              
+000001D6  2140 0000                163          move.l  d0,tcbd0(a0)            ;store registers
+000001DA  2141 0004                164          move.l  d1,tcbd1(a0)       
+000001DE  2142 0008                165          move.l  d2,tcbd2(a0)
+000001E2  2143 000C                166          move.l  d3,tcbd3(a0) 
+000001E6  2144 0010                167          move.l  d4,tcbd4(a0)
+000001EA  2145 0014                168          move.l  d5,tcbd5(a0)       
+000001EE  2146 0018                169          move.l  d6,tcbd6(a0)
+000001F2  2147 001C                170          move.l  d7,tcbd7(a0)
+000001F6  2039 000008B2            171          move.l  a0sav,d0 
+000001FC  2140 0020                172          move.l  d0,tcba0(a0)
+00000200  2149 0024                173          move.l  a1,tcba1(a0)       
+00000204  214A 0028                174          move.l  a2,tcba2(a0)
+00000208  214B 002C                175          move.l  a3,tcba3(a0) 
+0000020C  214C 0030                176          move.l  a4,tcba4(a0)
+00000210  214D 0034                177          move.l  a5,tcba5(a0)       
+00000214  214E 0038                178          move.l  a6,tcba6(a0)
+00000218                           179  
+00000218  3017                     180          move    (sp),d0                 ;pop and store SR
+0000021A  C07C 0100                181          and     #$0100,d0               ;when a timer interrupt happens at the exact same time a trap call is made, two sets of PC and SR are pushed.
+0000021E  6700 0004                182          beq     noclash                 ;We need to save the first pair by shifting the SP to the right by 6 bytes
+00000222                           183  intclash
+00000222  5C8F                     184          add.l   #6,sp
+00000224                           185  noclash             
+00000224  3017                     186          move    (sp),d0
+00000226  548F                     187          add.l   #2,sp              
+00000228  2140 0040                188          move.l  d0,tcbsr(a0)
+0000022C                           189          
+0000022C  2017                     190          move.l  (sp),d0                 ;pop and store PC
+0000022E  588F                     191          add.l   #4,sp
+00000230  2140 0044                192          move.l  d0,tcbpc(a0)
+00000234                           193          
+00000234  214F 003C                194          move.l  a7,tcba7(a0)            ;store SP 
+00000238                           195          
+00000238                           196  ;******************************************************************************
+00000238                           197  serv                                    ;SERVICE ROUTINES
+00000238                           198  ;******************************************************************************
+00000238  2039 000008C6            199      move.l id,d0                        ;Check if Timer interrupts
+0000023E  6700 0056                200      beq timerserv
+00000242                           201      
+00000242  2039 000008C6            202      move.l id,d0                        ;Check if Syscr
+00000248  5380                     203      sub.l #syscr,d0
+0000024A  6700 0090                204      beq syscrserv
+0000024E                           205      
+0000024E  2039 000008C6            206      move.l id,d0                        ;Check if Sysdel
+00000254  5580                     207      sub.l #sysdel,d0
+00000256  6700 0172                208      beq sysdelserv
+0000025A                           209      
+0000025A  2039 000008C6            210      move.l id,d0                        ;Check if syswtmxserv
+00000260  5780                     211      sub.l #syswtmx,d0
+00000262  6700 01BC                212      beq syswtmxserv
+00000266                           213  
+00000266  2039 000008C6            214      move.l id,d0                        ;Check if syssgmxserv
+0000026C  5980                     215      sub.l #syssgmx,d0
+0000026E  6700 0256                216      beq syssgmxserv
+00000272                           217      
+00000272  2039 000008C6            218      move.l id,d0                        ;Check if sysinmxserv
+00000278  5B80                     219      sub.l #sysinmx,d0
+0000027A  6700 02A6                220      beq sysinmxserv
+0000027E                           221      
+0000027E  2039 000008C6            222      move.l id,d0                        ;Check if syswttm 
+00000284  5D80                     223      sub.l #syswttm,d0
+00000286  6700 0040                224      beq syswttmserv
+0000028A                           225  
+0000028A  2039 000008C6            226      move.l id,d0                        ;Check if syswtio 
+00000290  5F80                     227      sub.l #syswtio,d0
+00000292  6700 029E                228      beq syswtioserv
+00000296                           229   
+00000296                           230  timerserv
+00000296  2079 000008A6            231      move.l  rdytcb,a0
+0000029C  2268 0048                232      move.l  tcbnext(a0),a1              ;When timer int occurs, use current tcb's tcbnext field to set a1 (a1 is always used to set rdytcb)
+000002A0                           233  
+000002A0  2029 0050                234      move.l  tcbwtim(a1),d0              ;if wait field of next tcb is zero then continue to scheduler
+000002A4  6700 0302                235      beq sched
+000002A8                           236      
+000002A8                           237      
+000002A8  90B9 000008CA            238      sub.l   time,d0                     ;if wait field of next tcb not zero AND tcbwtim Equals or is less than Current time then reset tcbwtim and continue to sched
+000002AE  6700 000E                239      beq rstwt
+000002B2  6B00 000A                240      bmi rstwt
+000002B6                           241      
+000002B6  2269 0048                242      move.l  tcbnext(a1),a1              ;next tcb is still waiting so we skip it by scheduling a next next tcb
+000002BA  6000 02EC                243      bra sched
+000002BE                           244  rstwt    
+000002BE  7000                     245      move.l  #$00,d0
+000002C0  2340 0050                246      move.l  d0,tcbwtim(a1)              ;reset wait time field and continue with the next tcb
+000002C4  6000 02E2                247      bra sched
+000002C8                           248      
+000002C8                           249  syswttmserv 
+000002C8                           250      
+000002C8  2039 000008CA            251      move.l  time,d0
+000002CE  D081                     252      add.l   d1,d0
+000002D0  2140 0050                253      move.l  d0,tcbwtim(a0)              ;update the tcb with the wait time count
+000002D4  2268 0048                254      move.l  tcbnext(a0),a1              ;switch to next task
+000002D8  6000 02CE                255      bra sched
+000002DC                           256      
+000002DC                           257  syscrserv
+000002DC  2039 000008DE            258      move.l  syscrCount, d0
+000002E2  5380                     259      sub.l   #1, d0
+000002E4  6700 025A                260      beq createError
+000002E8  23C0 000008DE            261      move.l  d0, syscrCount
+000002EE                           262      
+000002EE  2441                     263      move.l  d1, a2
+000002F0  2679 000008EE            264      move.l  UsrStkAdd, a3
+000002F6  B5CB                     265      cmpa.l a3,a2
+000002F8  6D00 027A                266      blt.l addressError
+000002FC                           267      
+000002FC  2442                     268      move.l  d2, a2
+000002FE  2679 000008EE            269      move.l  UsrStkAdd, a3
+00000304  B5CB                     270      cmpa.l a3,a2
+00000306  6D00 026C                271      blt.l addressError
+0000030A                           272        
+0000030A                           273  findfreetcb                             ;Create task by finding available tcb and init
+0000030A  23C8 000008B2            274      move.l  a0,a0sav
+00000310  227C 00000606            275      move.l  #tcblst,a1                  ;subtracting from start of tcb value inorder to correct first tcblist
+00000316  93FC 00000054            276      sub.l   #tcblen,a1
+0000031C                           277  fftcbloop    
+0000031C  D3FC 00000054            278      add.l   #tcblen,a1                  ;search from start of tcblist
+00000322  2029 004C                279      move.l tcbused(a1),d0               ;find next tcb space that is not in use 
+00000326  66F4                     280      bne fftcbloop                       ;if d0 is 0 it would indicate that tcb is free, else loop again to find free tcb
+00000328                           281      
+00000328  2468 0048                282      move.l  tcbnext(a0),a2              ;swap links of current and new TCBs ;NEXT
+0000032C  2149 0048                283      move.l  a1,tcbnext(a0)          
+00000330  234A 0048                284      move.l  a2,tcbnext(a1)
+00000334                           285      
+00000334  237C 00000000 0000       286      move.l  #$00,tcbd0(a1)              ;init registers
+0000033C  237C 00000000 0004       287      move.l  #$00,tcbd1(a1)       
+00000344  237C 00000000 0008       288      move.l  #$00,tcbd2(a1)
+0000034C  237C 00000000 000C       289      move.l  #$00,tcbd3(a1) 
+00000354  237C 00000000 0010       290      move.l  #$00,tcbd4(a1)
+0000035C  237C 00000000 0014       291      move.l  #$00,tcbd5(a1)       
+00000364  237C 00000000 0018       292      move.l  #$00,tcbd6(a1)
+0000036C  237C 00000000 001C       293      move.l  #$00,tcbd7(a1) 
+00000374  237C 00000000 0020       294      move.l  #$00,tcba0(a1)
+0000037C  237C 00000000 0024       295      move.l  #$00,tcba1(a1)       
+00000384  237C 00000000 0028       296      move.l  #$00,tcba2(a1)
+0000038C  237C 00000000 002C       297      move.l  #$00,tcba3(a1) 
+00000394  237C 00000000 0030       298      move.l  #$00,tcba4(a1)
+0000039C  237C 00000000 0034       299      move.l  #$00,tcba5(a1)       
+000003A4  237C 00000000 0038       300      move.l  #$00,tcba6(a1)
+000003AC                           301      
+000003AC                           302  
+000003AC                           303     
+000003AC  237C 00000000 0040       304      move.l  #%0000000000000000,tcbsr(a1)              ;init SR
+000003B4                           305  
+000003B4  2341 0044                306      move.l  d1,tcbpc(a1)                ;PC
+000003B8  2342 003C                307      move.l  d2,tcba7(a1)                ;store SP 
+000003BC                           308      
+000003BC  237C 00000001 004C       309      move.l  #01,tcbused(a1)             ;set used flag 1 to indicate that the tcb is in use
+000003C4                           310      
+000003C4  2248                     311      move.l  a0,a1
+000003C6                           312      
+000003C6  6000 01E0                313      bra sched
+000003CA                           314      
+000003CA                           315  
+000003CA                           316  sysdelserv
+000003CA  2239 000008DE            317      move.l  syscrCount, d1
+000003D0  92B9 000008E2            318      sub.l   sysdelCount, d1
+000003D6  6700 0182                319      beq deleteError
+000003DA                           320      
+000003DA  2239 000008E2            321      move.l sysdelCount, d1
+000003E0  5381                     322      sub.l #1, d1
+000003E2  23C1 000008E2            323      move.l d1, sysdelCount
+000003E8  2079 000008A6            324      move.l  rdytcb,a0
+000003EE                           325  fptcb                                   ;Find Pointing tcb - find the task that points to the requesting task    
+000003EE  2248                     326      move.l  a0,a1
+000003F0  2069 0048                327      move.l  tcbnext(a1),a0      
+000003F4  2029 0048                328      move.l  tcbnext(a1),d0
+000003F8  90B9 000008A6            329      sub.l   rdytcb,d0                   
+000003FE  66EE                     330      bne fptcb  
+00000400                           331      
+00000400  2079 000008A6            332      move.l  rdytcb,a0
+00000406  2468 0048                333      move.l  tcbnext(a0),a2              ;copy next link of current tcb and put in to pointing TCB
+0000040A  2149 0048                334      move.l  a1,tcbnext(a0)          
+0000040E  234A 0048                335      move.l  a2,tcbnext(a1)
+00000412                           336      
+00000412  217C 00000000 004C       337      move.l #00,tcbused(a0)              ;once task deleted the tcb must be marked as unused
+0000041A                           338      
+0000041A  224A                     339      move.l  a2,a1               
+0000041C  6000 018A                340      bra sched
+00000420                           341      
+00000420                           342  
+00000420                           343  syswtmxserv
+00000420                           344  
+00000420  2039 000008D2            345      move.l  mutex,d0                     ;check mutex and skip to reready if mutex is free else put task on waitlist
+00000426  6600 008C                346      bne reready
+0000042A                           347      
+0000042A  2079 000008A6            348      move.l  rdytcb,a0
+00000430                           349  fptcb1                                  ;Find Pointing tcb - find the task that points to the requesting task    
+00000430  2248                     350      move.l  a0,a1
+00000432  2069 0048                351      move.l  tcbnext(a1),a0      
+00000436  2029 0048                352      move.l  tcbnext(a1),d0
+0000043A  90B9 000008A6            353      sub.l   rdytcb,d0                   
+00000440  66EE                     354      bne fptcb1                          ;on exit of this loop, a1 is the tcb that is pointing to the current tcb
+00000442                           355      
+00000442  2079 000008A6            356      move.l  rdytcb,a0                   ;-Swap previous tcb's link and current tcb'link (which takes current tcb off rdylist)
+00000448  2468 0048                357      move.l  tcbnext(a0),a2              ;|
+0000044C  2169 0048 0048           358      move.l  tcbnext(a1),tcbnext(a0)     ;|
+00000452  234A 0048                359      move.l  a2,tcbnext(a1)              ;-
+00000456                           360      
+00000456                           361      ;now we need to keep track of waiting tcb
+00000456                           362      
+00000456  2039 000008AA            363      move.l  wttcb,d0                    ;check if there is anything in the waitlist
+0000045C  6600 0022                364      bne     addtowtlst                  ;store next waiting task as element in tcbnext linked list
+00000460                           365                                          ;nothing in wait list
+00000460                           366      
+00000460  2079 000008A6            367      move.l  rdytcb,a0                   ;-Swap current tcb's link (which is itself) and waitlist variable (which puts current tcb in waitlist)
+00000466  2468 0048                368      move.l  tcbnext(a0),a2              ;|
+0000046A  2179 000008AA 0048       369      move.l  wttcb,tcbnext(a0)           ;|
+00000472  23CA 000008AA            370      move.l  a2,wttcb                    ;-
+00000478                           371      
+00000478  2269 0048                372      move.l  tcbnext(a1),a1              ;previous tcb's link is setup as next task
+0000047C  6000 012A                373      bra sched
+00000480                           374  
+00000480                           375  addtowtlst                              ;(a0-current tcb, a1-pointing tcb, a2-next tcb)
+00000480  2479 000008AA            376      move.l  wttcb,a2
+00000486                           377  findtail                                ;finds the element in wiatlist that links to nothing (last element)
+00000486  264A                     378      move.l  a2,a3
+00000488  202B 0048                379      move.l  tcbnext(a3),d0
+0000048C  246B 0048                380      move.l  tcbnext(a3),a2
+00000490  0480 00000000            381      sub.l   #$00000000,d0
+00000496  66EE                     382      bne     findtail                    ;exiting this loop a3 will have the tail of waitlist
+00000498                           383      
+00000498  2079 000008A6            384      move.l  rdytcb,a0                   ;-Swap last waiting tcb's link and current tcb's link (which puts current tcb at tail of wtlist)
+0000049E  2468 0048                385      move.l  tcbnext(a0),a2              ;|
+000004A2  216B 0048 0048           386      move.l  tcbnext(a3),tcbnext(a0)     ;|
+000004A8  274A 0048                387      move.l  a2,tcbnext(a3)              ;-
+000004AC                           388      
+000004AC  2269 0048                389      move.l  tcbnext(a1),a1              ;previous tcb's link is setup as next task               
+000004B0  6000 00F6                390      bra sched
+000004B4                           391  
+000004B4                           392  reready                                 ;if mutex is 1
+000004B4  7000                     393      move.l  #00,d0                      ;set mutex to 0
+000004B6  23C0 000008D2            394      move.l  d0,mutex
+000004BC  2279 000008A6            395      move.l  rdytcb,a1                   ;task continued 
+000004C2                           396      
+000004C2  6000 00E4                397      bra sched
+000004C6                           398      
+000004C6                           399  syssgmxserv
+000004C6  2039 000008D2            400      move.l  mutex,d0                     ;check mutex, if mutex is free (1) at this point in execution then something has gone wrong
+000004CC  6600 00C0                401      bne mutexerror
+000004D0                           402      
+000004D0  2039 000008AA            403      move.l  wttcb,d0
+000004D6  6700 0038                404      beq     mtxone                      ;Nothing in waitlist, set mutex to 1 and continue task
+000004DA                           405                        ;a task is waiting 
+000004DA                           406         
+000004DA  2279 000008AA            407      move.l  wttcb,a1                    ;wttcb-waiting tcb, a1-next waiting tcb
+000004E0                           408      
+000004E0  2469 0048                409      move.l  tcbnext(a1),a2              ;-Swap head waitlist's link with 2nd waiting's link (head is popped off waitlist, but not yet on ready list)
+000004E4  2379 000008AA 0048       410      move.l  wttcb,tcbnext(a1)           ;|
+000004EC  23CA 000008AA            411      move.l  a2,wttcb                    ;-
+000004F2                           412                                          ;a1-newly ready tcb that is linked to itself
+000004F2  2079 000008A6            413      move.l  rdytcb,a0                   ;-Swap newly ready tcb's link and current tcb's link (which puts newly ready tcb in rdylist)
+000004F8  2468 0048                414      move.l  tcbnext(a0),a2              ;|
+000004FC  2169 0048 0048           415      move.l  tcbnext(a1),tcbnext(a0)     ;|
+00000502  234A 0048                416      move.l  a2,tcbnext(a1)              ;-
+00000506                           417      
+00000506                           418                                          ;After returning task to ready list MUTEX IS NOT FREE!
+00000506                           419      
+00000506  2279 000008A6            420      move.l  rdytcb,a1                   ;Continue same task but dont set mutex   free
+0000050C  6000 009A                421      bra sched
+00000510                           422  mtxone 
+00000510  7001                     423      move.l  #01,d0                      ;set mutex to 1
+00000512  23C0 000008D2            424      move.l  d0,mutex
+00000518  2279 000008A6            425      move.l  rdytcb,a1                   ;Continue same task
+0000051E  6000 0088                426      bra sched
+00000522                           427  
+00000522                           428  sysinmxserv
+00000522  23C1 000008D2            429      move.l  d1,mutex
+00000528  2279 000008A6            430      move.l  rdytcb,a1                   ;Continue same task
+0000052E  6000 0078                431      bra sched
+00000532                           432      
+00000532                           433  syswtioserv
+00000532  70FF                     434      move.l  #$FFFFFFFF,d0
+00000534  2140 0050                435      move.l  d0,tcbwtim(a0)              ;update the tcb with impossibly high wait time (10+ years if timer is 100ms)
+00000538  2268 0048                436      move.l  tcbnext(a0),a1              ;switch to next task  
+0000053C                           437      
+0000053C  6000 006A                438      bra sched
+00000540                           439      
+00000540                           440                      ;Error handlers 
+00000540                           441  createError                              ;freeze the system incase more than specified tasks created
+00000540  13FC 003F 00E0000E       442      move.b  #$3f,seventhdisplay             ;error code 0
+00000548  13FC 0079 00E0000C       443      move.b  #$79,$E0000C
+00000550  13FC 0079 00E0000A       444      move.b  #$79,$E0000A
+00000558  60E6                     445      bra createError
+0000055A                           446      
+0000055A                           447  deleteError                              ;freeze the system incase more than tasks created are tried to be deleted
+0000055A  13FC 0006 00E0000E       448      move.b  #$06,seventhdisplay         ;error code 1
+00000562  13FC 0079 00E0000C       449      move.b  #$79,$E0000C
+0000056A  13FC 0079 00E0000A       450      move.b  #$79,$E0000A
+00000572  60E6                     451      bra deleteError
+00000574                           452  addressError
+00000574  13FC 005B 00E0000E       453      move.b  #$5b,seventhdisplay         ;error code 2
+0000057C  13FC 0079 00E0000C       454      move.b  #$79,$E0000C
+00000584  13FC 0079 00E0000A       455      move.b  #$79,$E0000A
+0000058C  60E6                     456      bra addressError
+0000058E                           457  mutexerror
+0000058E  13FC 004F 00E0000E       458      move.b  #$4f,seventhdisplay         ;error code 3
+00000596  13FC 0079 00E0000C       459      move.b  #$79,$E0000C
+0000059E  13FC 0079 00E0000A       460      move.b  #$79,$E0000A
+000005A6  60E6                     461      bra mutexerror
+000005A8                           462  ;*******************************************************************************
+000005A8                           463  sched                                   ;SCHEDULER  
+000005A8                           464  ;*******************************************************************************
+000005A8                           465          
+000005A8  23C9 000008A6            466          move.l  a1,rdytcb               ;Move the next tcb to the ready tcb list head
+000005AE                           467  
+000005AE                           468  ;*******************************************************************************        
+000005AE                           469  disp                                    ;DISPATCHER 
+000005AE                           470  ;*******************************************************************************
+000005AE                           471  
+000005AE  2079 000008A6            472          move.l  rdytcb,a0               ;A0 ^ new running tcb
+000005B4  2228 0004                473          move.l  tcbd1(a0),d1            ;restore registers      
+000005B8  2428 0008                474          move.l  tcbd2(a0),d2
+000005BC  2628 000C                475          move.l  tcbd3(a0),d3 
+000005C0  2828 0010                476          move.l  tcbd4(a0),d4
+000005C4  2A28 0014                477          move.l  tcbd5(a0),d5       
+000005C8  2C28 0018                478          move.l  tcbd6(a0),d6
+000005CC  2E28 001C                479          move.l  tcbd7(a0),d7
+000005D0  2268 0024                480          move.l  tcba1(a0),a1       
+000005D4  2468 0028                481          move.l  tcba2(a0),a2
+000005D8  2668 002C                482          move.l  tcba3(a0),a3 
+000005DC  2868 0030                483          move.l  tcba4(a0),a4
+000005E0  2A68 0034                484          move.l  tcba5(a0),a5       
+000005E4  2C68 0038                485          move.l  tcba6(a0),a6
+000005E8  2E68 003C                486          move.l  tcba7(a0),a7
+000005EC                           487  
+000005EC  598F                     488          sub.l   #4,sp                   ;push PC
+000005EE  2028 0044                489          move.l  tcbpc(a0),d0            
+000005F2  2E80                     490          move.l  d0,(sp)   
+000005F4                           491  
+000005F4  558F                     492          sub.l   #2,sp           
+000005F6  2028 0040                493          move.l  tcbsr(a0),d0            ;push SR
+000005FA                           494  
+000005FA  3E80                     495          move    d0,(sp)
+000005FC                           496          
+000005FC  2028 0000                497          move.l  tcbd0(a0),d0            ;restore remaining registers
+00000600  2068 0020                498          move.l  tcba0(a0),a0
+00000604                           499          
+00000604                           500          
+00000604  4E73                     501  return  rte                             ;return, we can use ret becasue new PC and SR is currently in stack
+00000606                           502  
+00000606                           503  ;*******************************************************************************
+00000606                           504                                          ;RTS variables
+00000606                           505  ;*******************************************************************************
+00000606                           506  
+00000606                           507  tcblst              ds.b    tcblen*ntcblst          ;tcb list
+000008A6                           508  rdytcb              ds.l    1                       ;^ ready tcb list
+000008AA                           509  wttcb               ds.l    1                       ;^ waiting tcb
+000008AE                           510  iowttcb             ds.l    1                       ;^ I/O waiting tcb
+000008B2                           511  a0sav               ds.l    1                       ;A0 temporary save
+000008B6                           512  d0sav               ds.l    1                       ;D0 temporary save
+000008BA                           513  a0sav2              ds.l    1                       ;A0 temporary save for 2nd level interrupt
+000008BE                           514  d0sav2              ds.l    1                       ;D0 temporary save for 2nd level interrupt
+000008C2                           515  sliointcounter      ds.l    1                       ;temp counter for 2nd level interrupt
+000008C6                           516  id                  ds.l    1                       ;function id
+000008CA                           517  time                ds.l    1                       ;system time
+000008CE                           518  running             ds.l    1                       ;shared variable running
+000008D2                           519  mutex               ds.l    1                       ;mutex variable
+000008D6                           520  ;*******************************************************************************
+000008D6                           521                                          ;Internal variables
+000008D6                           522  ;*******************************************************************************
+000008D6                           523  ledStatus           ds.l    1                       ;ledstatus variable
+000008DA                           524  flagDelete          ds.l    1                       ;flag to indicate when to deletel a variable
+000008DE                           525  syscrCount          ds.l    1
+000008E2                           526  sysdelCount         ds.l    1
+000008E6                           527  syswtimCount        ds.l    1
+000008EA                           528  UsrCodeAdd          ds.l    1
+000008EE                           529  UsrStkAdd           ds.l    1
+000008F2                           530  ;*******************************************************************************
+000008F2                           531                                          ;USER APPLICATION TASKS
+000008F2                           532  ;*******************************************************************************
+000008F2  =00E0000E                533  seventhdisplay equ     $E0000E        
+000008F2  =00E00010                534  led            equ     $e00010          ;led
+000008F2  =00E00014                535  sw             equ     $e00014          ;switch
+000008F2                           536  
+000008F2                           537        
+00002000                           538      org     usrcode
+00002000                           539  ;*******************************************************************************
+00002000                           540  *        *EXAMPLE 1
+00002000                           541  ;*******************************************************************************
+00002000                           542  
+00002000                           543  *    move.b #$3f,$3000 *0
+00002000                           544  *    move.b #$06,$3001 *1
+00002000                           545  *    move.b #$5b,$3002 ;2
+00002000                           546  *    move.b #$4f,$3003 ;3
+00002000                           547  *    move.b #$66,$3004 ;4
+00002000                           548  *    move.b #$6d,$3005 ;5
+00002000                           549  *    move.b #$7d,$3006 ;6
+00002000                           550  *    move.b #$07,$3007 ;7
+00002000                           551  *    move.b #$7f,$3008 ;8
+00002000                           552  *    move.b #$67,$3009 ;9
+00002000                           553  *    move.b #$77,$300A ;A
+00002000                           554  *    move.b #$7c,$300b ;b
+00002000                           555  *    move.b #$39,$300C ;C
+00002000                           556  *    move.b #$5e,$300D ;d
+00002000                           557  *    move.b #$79,$300E ;E
+00002000                           558  *    move.b #$71,$300F ;F
+00002000                           559  *    move.b #$80,$3010 ;.
+00002000                           560  *    
+00002000                           561  *    move.b  #$00,seventhdisplay         ;Empty the 7seg displays
+00002000                           562  *    move.b  #$00,$E0000C
+00002000                           563  *    move.b  #$00,$E0000A
+00002000                           564  *    move.b  #$00,$E00008
+00002000                           565  *    move.b  #$00,$E00006
+00002000                           566  *    move.b  #$00,$E00004
+00002000                           567  *    move.b  #$00,$E00002
+00002000                           568  *    move.b  #$00,$E00000
+00002000                           569  *    
+00002000                           570  *    
+00002000                           571  *
+00002000                           572  *t0:                                       ;TASK 0
+00002000                           573  *        move.l  #$00,running              ;init running flag
+00002000                           574  *        move.l  #$3000,a2
+00002000                           575  *        move.l  #$3000,a3
+00002000                           576  *        move.l  #10, d6
+00002000                           577  *        
+00002000                           578  *        move.b  (a2)+,seventhdisplay
+00002000                           579  *        move.b  (a3),$E0000C
+00002000                           580  *        
+00002000                           581  *        move.l  #syscr,d0                 ;start task 1 - to check button press and toggle running flag
+00002000                           582  *        move.l  #t1,d1
+00002000                           583  *        move.l  #$5000,d2
+00002000                           584  *
+00002000                           585  *        trap    #sys        
+00002000                           586  *                                          ;repeat
+00002000                           587  *t00:    
+00002000                           588  *        move.l running, d4
+00002000                           589  *        sub #$1,d4
+00002000                           590  *        beq incrementDisplay
+00002000                           591  *        bne t00
+00002000                           592  *        
+00002000                           593  *
+00002000                           594  *incrementDisplay
+00002000                           595  *        move.b (a2),d5    
+00002000                           596  *        and #$00FF,d5                     ;clear upper byte of d0
+00002000                           597  *        sub #$77,d5                       ;check untill 9 after 9 reset to 0
+00002000                           598  *        beq reset1s     
+00002000                           599  *
+00002000                           600  *        move.b (a3),d5    
+00002000                           601  *        and #$00FF,d5                     ;clear upper byte of d0
+00002000                           602  *        sub #$7d,d5                       ;check untill 9 after 9 reset to 0
+00002000                           603  *        beq reset10s    
+00002000                           604  *        
+00002000                           605  *        move.b (a2)+,seventhdisplay
+00002000                           606  *        move.b (a3),$E0000C
+00002000                           607  *        
+00002000                           608  *        move.l  #syswttm,d0                 ;wait timer
+00002000                           609  *        move.l  #10,d1                      ;wait 10 ints
+00002000                           610  *        trap    #sys  
+00002000                           611  * 
+00002000                           612  *        bra     t00
+00002000                           613  *        
+00002000                           614  *
+00002000                           615  *     
+00002000                           616  *reset1s:  move    #$3000,a2                    ;point to starting value of to be displayed on 7 seven segement display
+00002000                           617  *        add.l   #$1,a3
+00002000                           618  *        bra     incrementDisplay
+00002000                           619  *
+00002000                           620  *reset10s:  move    #$3000,a3                    ;point to starting value of to be displayed on 7 seven segement display
+00002000                           621  *        bra     incrementDisplay
+00002000                           622  *    
+00002000                           623  *    ;Data starts at $3000
+00002000                           624  *    
+00002000                           625  *    
+00002000                           626  *    org     $4000
+00002000                           627  *t1:                                      
+00002000                           628  *        
+00002000                           629  *check 
+00002000                           630  *        move.b $E00014,d0
+00002000                           631  *        
+00002000                           632  *        and #$01,d0
+00002000                           633  *        sub #$01,d0
+00002000                           634  *        beq check 
+00002000                           635  *        bne pressed
+00002000                           636  *          
+00002000                           637  *pressed 
+00002000                           638  *        move.b $E00014,d0
+00002000                           639  *        and #$01,d0
+00002000                           640  *        sub #$01,d0
+00002000                           641  *        bne pressed
+00002000                           642  *
+00002000                           643  *
+00002000                           644  *        move.l running,d3
+00002000                           645  *        eor #01, d3                       ;check for switch status
+00002000                           646  *        move.l d3, running                ;update running flag
+00002000                           647  *
+00002000                           648  *        bra     t1
+00002000                           649          
+00002000                           650  ;*******************************************************************************        
+00002000                           651          *END OF EXAMPLE 1
+00002000                           652  ;*******************************************************************************   
+00002000                           653  
+00002000                           654      
+00002000                           655  ;*******************************************************************************       
+00002000                           656           *MUTEX EXAMPLE 2
+00002000                           657  ;******************************************************************************* 
+00002000                           658  
+00002000                           659  *        org usrcode
+00002000                           660  *
+00002000                           661  *        
+00002000                           662  *        
+00002000                           663  *        move.b #$3f,$3000 *0
+00002000                           664  *        move.b #$06,$3001 *1
+00002000                           665  *        move.b #$5b,$3002 ;2
+00002000                           666  *        move.b #$4f,$3003 ;3
+00002000                           667  *        move.b #$66,$3004 ;4
+00002000                           668  *        move.b #$6d,$3005 ;5
+00002000                           669  *        move.b #$7d,$3006 ;6
+00002000                           670  *        move.b #$07,$3007 ;7
+00002000                           671  *        move.b #$7f,$3008 ;8
+00002000                           672  *        move.b #$67,$3009 ;9
+00002000                           673  *        
+00002000                           674  *        move.b  #$00,$E0000E         ;Empty the 7seg displays
+00002000                           675  *        move.b  #$00,$E0000C
+00002000                           676  *        move.b  #$00,$E0000A
+00002000                           677  *        move.b  #$00,$E00008
+00002000                           678  *        move.b  #$00,$E00006
+00002000                           679  *        move.b  #$00,$E00004
+00002000                           680  *        move.b  #$00,$E00002
+00002000                           681  *        move.b  #$00,$E00000
+00002000                           682  *        
+00002000                           683  *
+00002000                           684  *Task0
+00002000                           685  *        move.l  #$3000,a2                   ;store address of 7seg display bytes
+00002000                           686  *        
+00002000                           687  *        move.l  #0,d0                       ;init A B C and D
+00002000                           688  *        move.l  d0,a
+00002000                           689  *        move.l  d0,b
+00002000                           690  *        move.l  d0,c
+00002000                           691  *        move.l  d0,d
+00002000                           692  *        
+00002000                           693  *        move.l  #syscr,d0                   ;start task 1
+00002000                           694  *        move.l  #Task1,d1                   ;Task at address $4000
+00002000                           695  *        move.l  #$5000,d2                   ;SP for Task at $5000
+00002000                           696  *        trap    #sys 
+00002000                           697  *        
+00002000                           698  *        move.l  #syscr,d0                   ;start task 2
+00002000                           699  *        move.l  #Task2,d1                   ;Task at address $5000
+00002000                           700  *        move.l  #$6000,d2                   ;SP for Task at address $6000
+00002000                           701  *        trap    #sys 
+00002000                           702  *    
+00002000                           703  *        move.l  #sysinmx,d0                 ;init mutex
+00002000                           704  *        move.l  #1,d1
+00002000                           705  *        trap    #sys 
+00002000                           706  *        
+00002000                           707  *Task00
+00002000                           708  *        
+00002000                           709  *        move.l  a,d0
+00002000                           710  *        add.l   #$01,d0
+00002000                           711  *        move.l  d0,a
+00002000                           712  *        
+00002000                           713  *        move.l  #syswtmx,d0                 ;wait mutex
+00002000                           714  *        trap    #sys 
+00002000                           715  *    
+00002000                           716  *        move.l  d,d0
+00002000                           717  *        add.l   #$01,d0
+00002000                           718  *        move.l  d0,d
+00002000                           719  *        
+00002000                           720  *        move.l  #syssgmx,d0                 ;Signal mutex
+00002000                           721  *        trap    #sys
+00002000                           722  *        
+00002000                           723  *        move.l  a,d0
+00002000                           724  *        move.l  b,d1
+00002000                           725  *        move.l  c,d2
+00002000                           726  *        move.l  d,d3
+00002000                           727  *
+00002000                           728  *        
+00002000                           729  *        add.l   d1,d0                          ;Compute A + B + C - D
+00002000                           730  *        add.l   d2,d0
+00002000                           731  *        sub.l   d3,d0
+00002000                           732  *            
+00002000                           733  *        move.b  0(a2,d0.w),$E0000E             ;Display difference in RH 7 seg
+00002000                           734  *        
+00002000                           735  *        sub.l   #$5,d0
+00002000                           736  *        bmi     Task00
+00002000                           737  *        
+00002000                           738  *        bra Task00
+00002000                           739  *
+00002000                           740  *        org $4000
+00002000                           741  *Task1
+00002000                           742  *        move.l  b,d0
+00002000                           743  *        add.l   #$01,d0
+00002000                           744  *        move.l  d0,b
+00002000                           745  *        
+00002000                           746  *        move.l  #syswtmx,d0                 ;wait mutex
+00002000                           747  *        trap    #sys         
+00002000                           748  *    
+00002000                           749  *        move.l  d,d0
+00002000                           750  *        add.l   #$01,d0
+00002000                           751  *        move.l  d0,d
+00002000                           752  *        
+00002000                           753  *        move.l  #syssgmx,d0                 ;Signal mutex
+00002000                           754  *        trap    #sys
+00002000                           755  *        
+00002000                           756  *        
+00002000                           757  *        bra Task1
+00002000                           758  *        org $5000
+00002000                           759  *Task2
+00002000                           760  *        move.l  c,d0
+00002000                           761  *        add.l   #$01,d0
+00002000                           762  *        move.l  d0,c
+00002000                           763  *        
+00002000                           764  *        move.l  #syswtmx,d0                 ;wait mutex
+00002000                           765  *        trap    #sys         
+00002000                           766  *    
+00002000                           767  *        move.l  d,d0
+00002000                           768  *        add.l   #$01,d0
+00002000                           769  *        move.l  d0,d
+00002000                           770  *        
+00002000                           771  *        move.l  #syssgmx,d0                 ;Signal mutex
+00002000                           772  *        trap    #sys
+00002000                           773  *        
+00002000                           774  *        bra Task2
+00002000                           775  *        
+00002000                           776  *        
+00002000                           777  *        ;Data
+00002000                           778  *a   dc.l    0
+00002000                           779  *b   dc.l    0
+00002000                           780  *c   dc.l    0   
+00002000                           781  *d   dc.l    0 
+00002000                           782  
+00002000                           783  ;*******************************************************************************        
+00002000                           784          *END OF MUTEX EXAMPLE 2
+00002000                           785  ;*******************************************************************************
+00002000                           786  
+00002000                           787  
+00002000                           788  ;*******************************************************************************  
+00002000                           789  *        *I/O interrupt EXAMPLE
+00002000                           790  ;*******************************************************************************
+00002000                           791  
+00002000                           792  *        org usrcode
+00002000                           793  *
+00002000                           794  *led     equ     $e00010         ;led
+00002000                           795  *sw      equ     $e00014         ;switch
+00002000                           796  *
+00002000                           797  *Task0                             
+00002000                           798  *        move.l  #syscr,d0       ;start task 1
+00002000                           799  *        move.l  #Task1,d1
+00002000                           800  *        move.l  #$4000,d2
+00002000                           801  *        trap    #sys        
+00002000                           802  *                                ;repeat
+00002000                           803  *Task00
+00002000                           804  *        move.l  #$01,d1         ;  set led 0
+00002000                           805  *        move.b  d1,led
+00002000                           806  *          
+00002000                           807  *        
+00002000                           808  *        bra     Task00
+00002000                           809  *        
+00002000                           810  *Task1                               
+00002000                           811  *                               
+00002000                           812  *        move.l  #$02,d0         ;  set led 1
+00002000                           813  *        move.b  d0,led
+00002000                           814  *        
+00002000                           815  *        move.l #$0000FFFF,d1
+00002000                           816  *delay1
+00002000                           817  *        move.b  d0,led
+00002000                           818  *        sub.l   #01,d1        
+00002000                           819  *        bne     delay1
+00002000                           820  *        
+00002000                           821  *        move.l  #syswtio,d0       ;wait for I/O before proceeding
+00002000                           822  *        trap    #sys 
+00002000                           823  *        
+00002000                           824  *        bra     Task1
+00002000                           825  
+00002000                           826  ;*******************************************************************************        
+00002000                           827  *        *End of I/O interrupt EXAMPLE
+00002000                           828  ;*******************************************************************************
+00002000                           829  
+00002000                           830  
+00002000                           831  ;*******************************************************************************       
+00002000                           832  *        *EXAMPLE 4
+00002000                           833  ;*******************************************************************************
+00002000                           834  *
+00002000                           835  *        org usrcode
+00002000                           836  *
+00002000                           837  *        move.b  #$00,seventhdisplay    ;Empty the 7seg displays
+00002000                           838  *        move.b  #$00,$E0000C
+00002000                           839  *        move.b  #$00,$E0000A
+00002000                           840  *        move.b  #$00,$E00008
+00002000                           841  *        move.b  #$00,$E00006
+00002000                           842  *        move.b  #$00,$E00004
+00002000                           843  *        move.b  #$00,$E00002
+00002000                           844  *        move.b  #$00,$E00000
+00002000                           845  *        
+00002000                           846  *        move.l  #00, ledStatus     
+00002000                           847  *        move.l  #00, flagDelete
+00002000                           848  *        move.b  #00,led
+00002000                           849  *    
+00002000                           850  *Task0   
+00002000                           851  *              
+00002000                           852  *        move.l  #syscr,d0       ;start task 7
+00002000                           853  *        move.l  #Task7,d1 
+00002000                           854  *        move.l  #$5000,d2
+00002000                           855  *        trap    #sys  
+00002000                           856  *          
+00002000                           857  *        move.l  #syscr,d0       ;start task 6
+00002000                           858  *        move.l  #Task66,d1  
+00002000                           859  *        move.l  #$5504,d2
+00002000                           860  *        trap    #sys  
+00002000                           861  * 
+00002000                           862  *        
+00002000                           863  *        move.l  #syscr,d0       ;start task 5
+00002000                           864  *        move.l  #Task55,d1  
+00002000                           865  *        move.l  #$5512,d2
+00002000                           866  *        trap    #sys 
+00002000                           867  *        
+00002000                           868  *        move.l  #syscr,d0      ;start task 4
+00002000                           869  *        move.l  #Task44,d1  
+00002000                           870  *        move.l  #$5516,d2
+00002000                           871  *        trap    #sys
+00002000                           872  *        
+00002000                           873  *        move.l  #syscr,d0       ;start task 3
+00002000                           874  *        move.l  #Task33,d1
+00002000                           875  *        move.l  #$5520,d2
+00002000                           876  *
+00002000                           877  *        trap    #sys
+00002000                           878  *        
+00002000                           879  *        move.l  #syscr,d0       ;start task 2
+00002000                           880  *        move.l  #Task22,d1
+00002000                           881  *        move.l  #$5524,d2
+00002000                           882  *        trap    #sys  
+00002000                           883  *        
+00002000                           884  *        move.l  #syscr,d0       ;start task 1
+00002000                           885  *        move.l  #Task11,d1
+00002000                           886  *        move.l  #$5528,d2
+00002000                           887  *        trap    #sys
+00002000                           888  *
+00002000                           889  *       
+00002000                           890  *        move.l  #2,d2                        
+00002000                           891  *Task00
+00002000                           892  *        move.l (flagDelete),d4
+00002000                           893  *        sub.l   #01, d4
+00002000                           894  *        beq     delLink00
+00002000                           895  *        
+00002000                           896  *        move.l  (ledStatus),d3 
+00002000                           897  *        sub.l   #1,d2
+00002000                           898  *        beq     switchoff00 
+00002000                           899  *        rol.l   #1,d3
+00002000                           900  *        or.l    #1,d3
+00002000                           901  *        move.l d3, (ledStatus)
+00002000                           902  *        move.l #$0000FFFF,d1
+00002000                           903  *delay0
+00002000                           904  *        sub.l   #01,d1        
+00002000                           905  *        bne     delay0 
+00002000                           906  *        
+00002000                           907  *        move.b  d3,led
+00002000                           908  *
+00002000                           909  *        bra     Task00
+00002000                           910  *
+00002000                           911  *switchoff00
+00002000                           912  *        move.l (flagDelete),d4
+00002000                           913  *        sub.l   #01, d4
+00002000                           914  *        beq     delLink00
+00002000                           915  *        bra     switchoff00
+00002000                           916  *        
+00002000                           917  *delLink00
+00002000                           918  *        move.l (ledStatus),d3
+00002000                           919  *        lsl.l  #01, d3
+00002000                           920  *        move.l d3, (ledStatus)
+00002000                           921  *        move.b  d3,led
+00002000                           922  *        
+00002000                           923  *      
+00002000                           924  *        move.l  #sysdel,d0       ;delete task 0
+00002000                           925  *        trap    #sys 
+00002000                           926  *
+00002000                           927  *        org $4000        
+00002000                           928  *          
+00002000                           929  *Task11                                                        
+00002000                           930  *        move.l  #2,d2
+00002000                           931  *Task1   
+00002000                           932  *        move.l (flagDelete),d4
+00002000                           933  *        sub.l   #01, d4
+00002000                           934  *        beq     delLink11
+00002000                           935  *        
+00002000                           936  *        move.l  ledStatus,d3  
+00002000                           937  *        sub.l   #1,d2
+00002000                           938  *        beq     switchoff11 
+00002000                           939  *        rol.l   #1,d3
+00002000                           940  *        or.l    #1,d3
+00002000                           941  *        move.l d3, (ledStatus) 
+00002000                           942  *        move.b  d3,led
+00002000                           943  *
+00002000                           944  *        bra     Task1
+00002000                           945  *        
+00002000                           946  *switchoff11
+00002000                           947  *        move.l (flagDelete),d4
+00002000                           948  *        sub.l   #01, d4
+00002000                           949  *        beq     delLink11
+00002000                           950  *        bra     switchoff11     
+00002000                           951  *
+00002000                           952  *delLink11
+00002000                           953  *        move.l (ledStatus),d3
+00002000                           954  *        lsl.l  #01, d3
+00002000                           955  *        move.l d3, (ledStatus)
+00002000                           956  *        move.b  d3,led
+00002000                           957  *        
+00002000                           958  *        move.l #$00004FFF,d1
+00002000                           959  *delay1
+00002000                           960  *        sub.l   #01,d1        
+00002000                           961  *        bne     delay1
+00002000                           962  *        
+00002000                           963  *        move.l  #sysdel,d0       ;delete task 1
+00002000                           964  *        trap    #sys    
+00002000                           965  *        
+00002000                           966  *Task22  
+00002000                           967  *        move.l  #2,d2                                               
+00002000                           968  *Task2   
+00002000                           969  *        move.l (flagDelete),d4
+00002000                           970  *        sub.l   #01, d4
+00002000                           971  *        beq     delLink22
+00002000                           972  *        
+00002000                           973  *        move.l  (ledStatus),d3  
+00002000                           974  *        sub.l   #1,d2
+00002000                           975  *        beq     switchoff22 
+00002000                           976  *        rol.l   #1,d3
+00002000                           977  *        or.l    #1,d3
+00002000                           978  *
+00002000                           979  *        move.l d3, (ledStatus) 
+00002000                           980  *        move.b  d3,led
+00002000                           981  *       
+00002000                           982  *        bra     Task2
+00002000                           983  *
+00002000                           984  *switchoff22
+00002000                           985  *        move.l (flagDelete),d4
+00002000                           986  *        sub.l   #01, d4
+00002000                           987  *        beq     delLink22
+00002000                           988  *        bra     switchoff22
+00002000                           989  *delLink22
+00002000                           990  *        move.l (ledStatus),d3
+00002000                           991  *        lsl.l  #01, d3
+00002000                           992  *        move.l d3, (ledStatus)
+00002000                           993  *        move.b  d3,led
+00002000                           994  *        
+00002000                           995  *        move.l #$00004FFF,d1
+00002000                           996  *delay2
+00002000                           997  *        sub.l   #01,d1        
+00002000                           998  *        bne     delay2
+00002000                           999  *        
+00002000                          1000  *        move.l  #sysdel,d0       ;delete task 2
+00002000                          1001  *        trap    #sys     
+00002000                          1002  *       
+00002000                          1003  *Task33                              
+00002000                          1004  *        move.l  #2,d2                       
+00002000                          1005  *Task3   
+00002000                          1006  *        move.l (flagDelete),d4
+00002000                          1007  *        sub.l   #01, d4
+00002000                          1008  *        beq     delLink33
+00002000                          1009  *        
+00002000                          1010  *        move.l  ledStatus,d3  
+00002000                          1011  *        sub.l   #1,d2
+00002000                          1012  *        beq     switchoff33 
+00002000                          1013  *        rol.l   #1,d3
+00002000                          1014  *        or.l    #1,d3
+00002000                          1015  *        move.l d3, (ledStatus) 
+00002000                          1016  *        move.b  d3,led
+00002000                          1017  *       
+00002000                          1018  *        bra     Task3
+00002000                          1019  *        
+00002000                          1020  *switchoff33
+00002000                          1021  *        move.l (flagDelete),d4
+00002000                          1022  *        sub.l   #01, d4
+00002000                          1023  *        beq     delLink22
+00002000                          1024  *        bra     switchoff33
+00002000                          1025  *delLink33
+00002000                          1026  *        move.l (ledStatus),d3
+00002000                          1027  *        lsl.l  #01, d3
+00002000                          1028  *        move.l d3, (ledStatus)
+00002000                          1029  *        move.b  d3,led
+00002000                          1030  *        
+00002000                          1031  *        move.l #$00004FFF,d1
+00002000                          1032  *delay3
+00002000                          1033  *        sub.l   #01,d1        
+00002000                          1034  *        bne     delay3
+00002000                          1035  *        
+00002000                          1036  *        move.l  #sysdel,d0       ;delete task 3
+00002000                          1037  *        trap    #sys      
+00002000                          1038  *        
+00002000                          1039  *Task44                               
+00002000                          1040  *        move.l  #2,d2                       
+00002000                          1041  *Task4   
+00002000                          1042  *        move.l (flagDelete),d4
+00002000                          1043  *        sub.l   #01, d4
+00002000                          1044  *        beq     delLink44
+00002000                          1045  *        
+00002000                          1046  *        move.l  ledStatus,d3  
+00002000                          1047  *        sub.l   #1,d2
+00002000                          1048  *        beq     switchoff44 
+00002000                          1049  *        rol.l   #1,d3
+00002000                          1050  *        or.l    #1,d3
+00002000                          1051  *        move.l d3, (ledStatus) 
+00002000                          1052  *        move.b  d3,led 
+00002000                          1053  *      
+00002000                          1054  *        bra     Task4
+00002000                          1055  *        
+00002000                          1056  *switchoff44
+00002000                          1057  *        move.l (flagDelete),d4
+00002000                          1058  *        sub.l   #01, d4
+00002000                          1059  *        beq     delLink22
+00002000                          1060  *        bra     switchoff44   
+00002000                          1061  *delLink44
+00002000                          1062  *        move.l (ledStatus),d3
+00002000                          1063  *        lsl.l  #01, d3
+00002000                          1064  *        move.l d3, (ledStatus)
+00002000                          1065  *        move.b  d3,led
+00002000                          1066  *        
+00002000                          1067  *        move.l #$00004FFF,d1
+00002000                          1068  *delay4
+00002000                          1069  *        sub.l   #01,d1        
+00002000                          1070  *        bne     delay4
+00002000                          1071  *Task55
+00002000                          1072  *        move.l  #2,d2
+00002000                          1073  *Task5
+00002000                          1074  *        move.l (flagDelete),d4
+00002000                          1075  *        sub.l   #01, d4
+00002000                          1076  *        beq     delLink44
+00002000                          1077  *        
+00002000                          1078  *        move.l  ledStatus,d3  
+00002000                          1079  *        sub.l   #1,d2
+00002000                          1080  *        beq     switchoff55 
+00002000                          1081  *        rol.l   #1,d3
+00002000                          1082  *        or.l    #1,d3
+00002000                          1083  *        move.l d3, (ledStatus) 
+00002000                          1084  *        move.b  d3,led      
+00002000                          1085  *      
+00002000                          1086  *        bra     Task5
+00002000                          1087  *        
+00002000                          1088  *switchoff55
+00002000                          1089  *        move.l (flagDelete),d4
+00002000                          1090  *        sub.l   #01, d4
+00002000                          1091  *        beq     delLink22      
+00002000                          1092  *        bra     switchoff55
+00002000                          1093  *delLink55
+00002000                          1094  *        move.l (ledStatus),d3
+00002000                          1095  *        lsl.l  #01, d3
+00002000                          1096  *        move.l d3, (ledStatus)
+00002000                          1097  *        move.b  d3,led
+00002000                          1098  *        
+00002000                          1099  *        move.l #$00004FFF,d1
+00002000                          1100  *delay5
+00002000                          1101  *        sub.l   #01,d1        
+00002000                          1102  *        bne     delay5
+00002000                          1103  *        
+00002000                          1104  *        move.l  #sysdel,d0       ;delete task 5 
+00002000                          1105  *        trap    #sys           
+00002000                          1106  *   
+00002000                          1107  *Task66                               
+00002000                          1108  *        move.l   #2,d2                       
+00002000                          1109  *Task6   
+00002000                          1110  *        move.l (flagDelete),d4
+00002000                          1111  *        sub.l   #01, d4
+00002000                          1112  *        beq     delLink66  
+00002000                          1113  *        
+00002000                          1114  *        move.l  ledStatus,d3  
+00002000                          1115  *        sub.l   #1,d2
+00002000                          1116  *        beq     switchoff66 
+00002000                          1117  *        rol.l   #1,d3
+00002000                          1118  *        or.l    #1,d3
+00002000                          1119  *        move.l d3, (ledStatus) 
+00002000                          1120  *        move.b  d3,led   
+00002000                          1121  *       
+00002000                          1122  *        bra     Task6 
+00002000                          1123  *        
+00002000                          1124  *switchoff66
+00002000                          1125  *        move.l (flagDelete),d4
+00002000                          1126  *        sub.l   #01, d4
+00002000                          1127  *        beq     delLink22
+00002000                          1128  *        bra     switchoff66   
+00002000                          1129  *delLink66
+00002000                          1130  *        move.l (ledStatus),d3
+00002000                          1131  *        lsl.l  #01, d3
+00002000                          1132  *        move.l d3, (ledStatus)
+00002000                          1133  *        move.b  d3,led
+00002000                          1134  *        
+00002000                          1135  *        move.l #$00004FFF,d1
+00002000                          1136  *delay6
+00002000                          1137  *        sub.l   #01,d1        
+00002000                          1138  *        bne     delay6
+00002000                          1139  *        
+00002000                          1140  *        move.l  #sysdel,d0       ;delete task 6
+00002000                          1141  *        trap    #sys     
+00002000                          1142  *       
+00002000                          1143  *Task7   
+00002000                          1144  *        move.l   #2,d2                                              
+00002000                          1145  *Task77  
+00002000                          1146  *        move.l (flagDelete),d4
+00002000                          1147  *        sub.l   #01, d4
+00002000                          1148  *        beq     delLink77
+00002000                          1149  *  
+00002000                          1150  *        move.l  ledStatus,d3  
+00002000                          1151  *        sub.l   #1,d2
+00002000                          1152  *        beq     switchoff77 
+00002000                          1153  *        rol.l   #1,d3
+00002000                          1154  *        or.l    #1,d3
+00002000                          1155  *        move.l d3, (ledStatus) 
+00002000                          1156  *        move.b  d3,led
+00002000                          1157  *     
+00002000                          1158  *        bra     Task77
+00002000                          1159  *        
+00002000                          1160  *switchoff77
+00002000                          1161  *        move.l #01, (flagDelete)
+00002000                          1162  *        bra     switchoff77   
+00002000                          1163  *delLink77
+00002000                          1164  *        move.l (ledStatus),d3
+00002000                          1165  *        lsl.l  #01, d3
+00002000                          1166  *        move.l d3, (ledStatus)
+00002000                          1167  *        move.b  d3,led
+00002000                          1168  *        bra switchoff77
+00002000                          1169  
+00002000                          1170  ;*******************************************************************************        
+00002000                          1171  *        *END OF EXAMPLE 4
+00002000                          1172  ;*******************************************************************************
+00002000                          1173  
+00002000                          1174  
+00002000                          1175  ;*******************************************************************************
+00002000                          1176  *        *EXAMPLE 5
+00002000                          1177  ;*******************************************************************************
+00002000                          1178  
+00002000                          1179  *        org usrcode
+00002000                          1180  *
+00002000                          1181  *        move.b  #$00,seventhdisplay         ;Empty the 7seg displays
+00002000                          1182  *        move.b  #$00,$E0000C
+00002000                          1183  *        move.b  #$00,$E0000A
+00002000                          1184  *        move.b  #$00,$E00008
+00002000                          1185  *        move.b  #$00,$E00006
+00002000                          1186  *        move.b  #$00,$E00004
+00002000                          1187  *        move.b  #$00,$E00002
+00002000                          1188  *        move.b  #$00,$E00000
+00002000                          1189  *       
+00002000                          1190  *Task0                             
+00002000                          1191  *        move.l  #syscr,d0       ;start task 1
+00002000                          1192  *        move.l  #Task1,d1
+00002000                          1193  *        move.l  #$5000,d2
+00002000                          1194  *        trap    #sys        
+00002000                          1195  *                                ;repeat
+00002000                          1196  *Task00
+00002000                          1197  *        move.l  #$01,d1         ;  set led 0
+00002000                          1198  *        move.b  d1,led
+00002000                          1199  *          
+00002000                          1200  **      move.l  #syswttm,d0                 ;wait timer
+00002000                          1201  **        move.l  #10,d1                      ;wait 10 ints
+00002000                          1202  **        trap    #sys 
+00002000                          1203  *        
+00002000                          1204  *        bra     Task00
+00002000                          1205  *        
+00002000                          1206  *        org $4000
+00002000                          1207  *Task1                               
+00002000                          1208  *                               
+00002000                          1209  *        move.l  #$02,d0         ;  set led 1
+00002000                          1210  *        move.b  d0,led
+00002000                          1211  *        
+00002000                          1212  *        ;move.l  #syswttm,d0                 ;wait timer
+00002000                          1213  *        ;move.l  #10,d1                      ;wait 10 ints
+00002000                          1214  *        
+00002000                          1215  *        ;trap    #sys  
+00002000                          1216  *        
+00002000                          1217  *        move.l #$0000FFFF,d1
+00002000                          1218  *delay
+00002000                          1219  *        move.b  d0,led
+00002000                          1220  *        sub.l   #01,d1        
+00002000                          1221  *        bne     delay
+00002000                          1222  *        move.l  #sysdel,d0       ;delete task 1
+00002000                          1223  *        trap    #sys 
+00002000                          1224  *       
+00002000                          1225  *        bra     Task1
+00002000                          1226  
+00002000                          1227     
+00002000                          1228  ;*******************************************************************************        
+00002000                          1229  *        *END OF EXAMPLE 5
+00002000                          1230  ;*******************************************************************************        
+00002000                          1231          END    res  
+
+No errors detected
+No warnings generated
+
+
+SYMBOL TABLE INFORMATION
+Symbol-name         Value
+-------------------------
+A0SAV               8B2
+A0SAV2              8BA
+ADDRESSERROR        574
+ADDTOWTLST          480
+CREATEERROR         540
+D0SAV               8B6
+D0SAV2              8BE
+DELETEERROR         55A
+DISP                5AE
+FFTCBLOOP           31C
+FINDFREETCB         30A
+FINDTAIL            486
+FL1                 1CA
+FLAGDELETE          8DA
+FLIH                154
+FLSINT              1BC
+FLTINT              154
+FPTCB               3EE
+FPTCB1              430
+ID                  8C6
+INTCLASH            222
+IORESET             186
+IOWTTCB             8AE
+LED                 E00010
+LEDSTATUS           8D6
+MTXONE              510
+MUTEX               8D2
+MUTEXERROR          58E
+NOCLASH             224
+NTCBLST             8
+RDYTCB              8A6
+REREADY             4B4
+RES                 88
+RETURN              604
+RSTWT               2BE
+RTS                 54
+RUNNING             8CE
+SCHED               5A8
+SERV                238
+SEVENTHDISPLAY      E0000E
+SKIPTCB             19E
+SLIOINT             172
+SLIOINTCOUNTER      8C2
+SW                  E00014
+SYS                 0
+SYSCR               1
+SYSCRCOUNT          8DE
+SYSCRSERV           2DC
+SYSDEL              2
+SYSDELCOUNT         8E2
+SYSDELSERV          3CA
+SYSINMX             5
+SYSINMXSERV         522
+SYSMEMALC           8
+SYSSGMX             4
+SYSSGMXSERV         4C6
+SYSWTIMCOUNT        8E6
+SYSWTIO             7
+SYSWTIOSERV         532
+SYSWTMX             3
+SYSWTMXSERV         420
+SYSWTTM             6
+SYSWTTMSERV         2C8
+TCB                 0
+TCBA0               20
+TCBA1               24
+TCBA2               28
+TCBA3               2C
+TCBA4               30
+TCBA5               34
+TCBA6               38
+TCBA7               3C
+TCBD0               0
+TCBD1               4
+TCBD2               8
+TCBD3               C
+TCBD4               10
+TCBD5               14
+TCBD6               18
+TCBD7               1C
+TCBINIT             A4
+TCBLEN              54
+TCBLST              606
+TCBNEXT             48
+TCBPC               44
+TCBSR               40
+TCBUSED             4C
+TCBWTIM             50
+TIME                8CA
+TIMERSERV           296
+USRCODE             2000
+USRCODEADD          8EA
+USRSTK              4000
+USRSTKADD           8EE
+WTTCB               8AA

@@ -1,0 +1,62 @@
+14/12/23
+	Sanjay
+		-Implemented scheduler and tested on LED switching example
+		-Implemented create task function and tested with the above example
+		-Made the Reset function
+17/12/23
+	Sanjay
+		-Implemented delete task function
+		-Some changes to TCB handling and initialising
+		-added a simple test of the delete function. Task 1 deletes itself after a delay and cannot be reenabled until reset. 
+20/12/23
+	Sanjay
+		-Implemented wait for mutex  and signal mutex (not tested)
+		-restructured service routines.
+		-fixed some logical mistakes with how create and delete function works (minor)
+21/12/23
+	Sahil
+		-Partial Implemention of first test program (stop watch)
+		-This test program is dependant on wait timer function and will not work without that
+22/12/23
+	Sahil
+		-Implemeted and tested wait function
+		-tested first use case but still unsure as to when to switch between the two tasks
+02/01/24
+	Sahil
+		-Comment added
+04/01/24
+	Sanjay
+		-Wait function working (service routine)
+		-The first example is working, but there is a delay in the timer.... 5 seconds less after 30 seconds. we will need to 				optimise or find workaround
+		-The second example works good 
+		-The third Example was implemented (only the sysdel part) we can make a more clever demo of the del function
+		- Now that all the basic examples and service routines are working we can start working on write up 
+		- Please try the examples for yourself and understand how they work. 
+13/01/24
+	Sanjay
+		-Mutex function bugs fixed.
+		-other functions are mostly fixed for now
+		-interrupt clashing with trap call resolved 
+		-wait function can be made better by using the time variable
+14/01/24
+	Sanjay
+		-Much better wait time function implemented. It uses the time variable, which updates on every timer int
+		-Now the timer can be accurate even with multiple tasks running simultaneously (important to note)
+15/01/24
+	Sahil
+		-Updated few Comments
+		-Added a use case example	
+	Sanjay	
+		-mutex working for 3 tasks	
+16/01/24
+	Sanjay
+		-Wait IO implemented 
+16/01/24
+	Sahil
+		-v2 has EE0 and EE1 implemented 
+16/01/24
+	Sahil
+		-v3 has updated comments and EE3 implemented 
+17/01/24
+	Sanjay
+		-Reset function added and tested on mutex example and led blinking example 
